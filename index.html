@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HomeSearcher — Поиск жилья в Варшаве</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --header-h:56px;
+  --sidebar-w:320px;
+  --radius:10px;
+  --transition:0.25s ease;
+}
+[data-theme="dark"]{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2333;
+  --text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+  --accent:#58a6ff;--accent2:#3fb950;--accent-red:#f85149;
+  --border:#30363d;--shadow:0 2px 8px rgba(0,0,0,.3);
+  --score-bg:#21262d;--card-hover:#1f2937;
+  --overlay:rgba(0,0,0,.6);
+}
+[data-theme="light"]{
+  --bg:#f0f2f5;--surface:#ffffff;--surface2:#f8f9fa;
+  --text:#1a1a2e;--text2:#57606a;--text3:#8b949e;
+  --accent:#0969da;--accent2:#1a7f37;--accent-red:#cf222e;
+  --border:#d0d7de;--shadow:0 2px 8px rgba(0,0,0,.08);
+  --score-bg:#eaeef2;--card-hover:#f3f4f6;
+  --overlay:rgba(0,0,0,.4);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── HEADER ── */
+.app-header{
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:1000;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 16px;gap:12px;
+  box-shadow:var(--shadow);
+}
+.app-header .logo{font-size:20px;font-weight:700;white-space:nowrap}
+.app-header .logo span{color:var(--accent)}
+.header-spacer{flex:1}
+.header-stats{font-size:13px;color:var(--text2);white-space:nowrap}
+.header-btn{
+  background:none;border:1px solid var(--border);color:var(--text);
+  padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;
+  display:flex;align-items:center;gap:4px;transition:var(--transition);
+}
+.header-btn:hover{background:var(--surface2);border-color:var(--accent)}
+.hamburger{display:none;background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px 8px}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  position:fixed;top:var(--header-h);left:0;bottom:0;width:var(--sidebar-w);
+  background:var(--surface);border-right:1px solid var(--border);
+  overflow-y:auto;padding:16px;z-index:900;
+  transition:transform .3s ease;
+}
+.sidebar h3{font-size:13px;text-transform:uppercase;color:var(--text2);margin:16px 0 8px;letter-spacing:.5px}
+.sidebar h3:first-child{margin-top:0}
+
+/* pill toggles */
+.pill-group{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.pill{
+  padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text2);
+  transition:var(--transition);user-select:none;
+}
+.pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pill:hover:not(.active){border-color:var(--accent);color:var(--text)}
+
+/* inputs */
+.filter-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.filter-row label{font-size:12px;color:var(--text2);min-width:32px}
+.filter-input{
+  flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:13px;
+  outline:none;transition:var(--transition);
+}
+.filter-input:focus{border-color:var(--accent)}
+.filter-input::placeholder{color:var(--text3)}
+
+/* proximity toggles */
+.prox-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
+.prox-row input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.prox-row .prox-icon{font-size:16px;width:22px;text-align:center}
+.prox-row .prox-label{flex:1;color:var(--text)}
+
+/* select */
+.filter-select{
+  width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:13px;
+  outline:none;cursor:pointer;
+}
+
+/* view toggle */
+.view-toggle{display:flex;gap:4px;margin-bottom:0}
+.view-btn{
+  flex:1;padding:8px;text-align:center;border-radius:6px;cursor:pointer;
+  font-size:13px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);
+  transition:var(--transition);
+}
+.view-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── MAIN CONTENT ── */
+.main-content{
+  margin-left:var(--sidebar-w);margin-top:var(--header-h);
+  min-height:calc(100vh - var(--header-h));
+  display:flex;flex-direction:column;
+}
+
+/* Map */
+#map{flex:1;min-height:500px;z-index:1}
+.map-view{display:flex;flex-direction:column;flex:1}
+.map-view.hidden{display:none}
+
+/* List view */
+.list-view{padding:16px;display:none}
+.list-view.active{display:block}
+.cards-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:16px;
+}
+
+/* Card */
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;cursor:pointer;transition:var(--transition);
+}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+.card-img{width:100%;height:180px;object-fit:cover;background:var(--surface2)}
+.card-img.no-img{display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:40px}
+.card-body{padding:12px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:4px;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-price{font-size:18px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.card-price small{font-size:12px;color:var(--text2);font-weight:400}
+.card-meta{font-size:12px;color:var(--text2);margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap}
+.card-meta span{display:flex;align-items:center;gap:3px}
+.card-district{font-size:12px;color:var(--text3);margin-bottom:8px}
+
+/* Score bars (mini) */
+.score-bars-mini{display:flex;gap:4px}
+.score-bar-mini{
+  flex:1;height:6px;border-radius:3px;background:var(--score-bg);overflow:hidden;position:relative;
+}
+.score-bar-mini .fill{height:100%;border-radius:3px;transition:width .4s ease}
+.score-bar-mini[data-cat="parks"] .fill{background:#3fb950}
+.score-bar-mini[data-cat="schools"] .fill{background:#58a6ff}
+.score-bar-mini[data-cat="kindergartens"] .fill{background:#d2a8ff}
+.score-bar-mini[data-cat="shopping"] .fill{background:#f0883e}
+.score-bar-mini[data-cat="transport"] .fill{background:#79c0ff}
+
+.card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.card-score{
+  font-size:13px;font-weight:600;padding:2px 8px;border-radius:10px;
+  background:var(--score-bg);
+}
+.card-link{font-size:12px;color:var(--accent)}
+
+/* source badge */
+.source-badge{
+  display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;
+  color:#fff;font-weight:600;text-transform:uppercase;
+  margin-bottom:4px;
+}
+.source-badge.otodom{background:#0069b4}
+.source-badge.gratka{background:#e64415}
+.source-badge.morizon{background:#00a651}
+.fetch-controls{
+  display:flex;align-items:center;gap:4px;
+}
+.fetch-btn{position:relative}
+.fetch-btn.spinning #fetch-icon{
+  display:inline-block;
+  animation:spin 1s linear infinite;
+}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.fetch-status{
+  font-size:11px;color:var(--text2);max-width:180px;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+.fetch-btn:disabled{opacity:.5;cursor:not-allowed}
+.deal-badge{
+  display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;
+  font-weight:600;margin-bottom:4px;
+}
+.deal-badge.rent{background:#238636;color:#fff}
+.deal-badge.sale{background:#8957e5;color:#fff}
+
+/* ── MODAL ── */
+.modal-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;
+  background:var(--overlay);display:none;align-items:center;justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--surface);border-radius:var(--radius);max-width:700px;width:100%;
+  max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 8px 30px rgba(0,0,0,.3);
+}
+.modal-close{
+  position:absolute;top:12px;right:12px;background:var(--surface2);border:none;
+  color:var(--text);font-size:20px;width:32px;height:32px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;
+}
+.modal-close:hover{background:var(--accent-red);color:#fff}
+.modal-img{width:100%;height:260px;object-fit:cover;background:var(--surface2)}
+.modal-body{padding:20px}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:8px}
+.modal-price{font-size:24px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.modal-price small{font-size:13px;color:var(--text2);font-weight:400}
+.modal-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;font-size:13px}
+.modal-info div{display:flex;gap:6px}
+.modal-info .label{color:var(--text2)}
+.modal-info .value{font-weight:600}
+
+/* proximity detail */
+.prox-detail{margin:16px 0}
+.prox-detail h4{font-size:14px;margin-bottom:10px;color:var(--text2)}
+.prox-item{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.prox-item .icon{font-size:18px;width:24px;text-align:center}
+.prox-item .name{width:80px;font-size:13px;color:var(--text2)}
+.prox-item .bar{flex:1;height:8px;border-radius:4px;background:var(--score-bg);overflow:hidden}
+.prox-item .bar .fill{height:100%;border-radius:4px;transition:width .5s ease}
+.prox-item .score-val{font-size:13px;font-weight:600;width:30px;text-align:right}
+.prox-item .count-info{font-size:11px;color:var(--text3);width:80px}
+
+.prox-item[data-cat="parks"] .fill{background:#3fb950}
+.prox-item[data-cat="schools"] .fill{background:#58a6ff}
+.prox-item[data-cat="kindergartens"] .fill{background:#d2a8ff}
+.prox-item[data-cat="shopping"] .fill{background:#f0883e}
+.prox-item[data-cat="transport"] .fill{background:#79c0ff}
+
+.modal-total-score{
+  text-align:center;padding:12px;border-radius:var(--radius);
+  background:var(--score-bg);margin:12px 0;
+}
+.modal-total-score .big{font-size:32px;font-weight:700}
+.modal-total-score .small{font-size:13px;color:var(--text2)}
+
+#modal-mini-map{height:200px;border-radius:var(--radius);margin:12px 0}
+
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+.btn-primary{
+  flex:1;padding:10px;text-align:center;border-radius:6px;font-size:14px;font-weight:600;
+  background:var(--accent);color:#fff;border:none;cursor:pointer;
+  transition:var(--transition);
+}
+.btn-primary:hover{opacity:.85;text-decoration:none}
+
+/* ── EMPTY STATE ── */
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--text2);
+}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:15px}
+
+/* ── LOADING ── */
+.loading{text-align:center;padding:40px;color:var(--text2)}
+.loading::after{content:'';display:inline-block;width:20px;height:20px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-left:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── LEAFLET OVERRIDES ── */
+.leaflet-popup-content-wrapper{
+  background:var(--surface)!important;color:var(--text)!important;
+  border:1px solid var(--border)!important;border-radius:8px!important;
+  box-shadow:var(--shadow)!important;
+}
+.leaflet-popup-tip{background:var(--surface)!important}
+.leaflet-popup-content{font-size:13px;line-height:1.4}
+.leaflet-popup-content .popup-title{font-weight:600;margin-bottom:4px}
+.leaflet-popup-content .popup-price{color:var(--accent);font-weight:700;font-size:15px}
+.leaflet-popup-content .popup-meta{color:var(--text2);font-size:12px;margin:4px 0}
+.leaflet-popup-content .popup-score{font-size:12px;margin:4px 0}
+.leaflet-popup-content .popup-link{font-size:12px}
+.marker-cluster{background:rgba(88,166,255,.3)!important}
+.marker-cluster div{background:var(--accent)!important;color:#fff!important;font-weight:600}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main-content{margin-left:0}
+  .hamburger{display:block}
+  .header-stats{display:none}
+  .cards-grid{grid-template-columns:1fr}
+  .modal{max-width:100%;margin:10px}
+  .modal-info{grid-template-columns:1fr}
+}
+@media(min-width:769px) and (max-width:1024px){
+  :root{--sidebar-w:260px}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <button class="hamburger" onclick="toggleSidebar()">☰</button>
+  <div class="logo">🏠 Home<span>Searcher</span></div>
+  <div class="header-spacer"></div>
+  <span class="header-stats" id="stats-text">Загрузка...</span>
+  <select class="filter-select" id="source-filter" onchange="applyFilters()" style="width:auto;padding:4px 8px;font-size:12px;margin:0 4px">
+    <option value="">Все источники</option>
+    <option value="otodom">Otodom</option>
+    <option value="gratka">Gratka</option>
+  </select>
+  <div class="fetch-controls">
+    <select id="fetch-source" class="filter-select" style="width:auto;padding:4px 8px;font-size:12px">
+      <option value="all">Все сайты</option>
+      <option value="otodom">Otodom</option>
+      <option value="gratka">Gratka</option>
+    </select>
+    <button class="header-btn fetch-btn" id="fetch-btn" onclick="triggerFetch()" title="Загрузить свежие объявления">
+      <span id="fetch-icon">🔄</span>
+    </button>
+    <span class="fetch-status" id="fetch-status"></span>
+  </div>
+  <button class="header-btn" onclick="toggleTheme()" title="Тема">
+    <span id="theme-icon">🌙</span>
+  </button>
+</header>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+
+  <h3>Тип жилья</h3>
+  <div class="pill-group" id="type-pills">
+    <div class="pill active" data-value="apartment" onclick="togglePill(this,'type')">🏢 Квартиры</div>
+    <div class="pill active" data-value="house" onclick="togglePill(this,'type')">🏠 Дома</div>
+  </div>
+
+  <h3>Тип сделки</h3>
+  <div class="pill-group" id="deal-pills">
+    <div class="pill" data-value="rent" onclick="togglePill(this,'deal')">Аренда</div>
+    <div class="pill active" data-value="sale" onclick="togglePill(this,'deal')">Покупка</div>
+  </div>
+
+  <h3>Цена (PLN)</h3>
+  <div class="filter-row">
+    <label>от</label>
+    <input class="filter-input" type="number" id="price-min" placeholder="мин" oninput="applyFilters()">
+    <label>до</label>
+    <input class="filter-input" type="number" id="price-max" placeholder="макс" oninput="applyFilters()">
+  </div>
+
+  <h3>Площадь (м²)</h3>
+  <div class="filter-row">
+    <label>от</label>
+    <input class="filter-input" type="number" id="area-min" placeholder="мин" value="65" oninput="applyFilters()">
+    <label>до</label>
+    <input class="filter-input" type="number" id="area-max" placeholder="макс" oninput="applyFilters()">
+  </div>
+
+  <h3>Комнаты</h3>
+  <div class="pill-group" id="rooms-pills">
+    <div class="pill" data-value="1" onclick="togglePill(this,'rooms')">1</div>
+    <div class="pill" data-value="2" onclick="togglePill(this,'rooms')">2</div>
+    <div class="pill active" data-value="3" onclick="togglePill(this,'rooms')">3</div>
+    <div class="pill active" data-value="4" onclick="togglePill(this,'rooms')">4</div>
+    <div class="pill active" data-value="5" onclick="togglePill(this,'rooms')">5+</div>
+  </div>
+
+  <h3>Близость (важно для меня)</h3>
+  <div class="prox-row"><input type="checkbox" id="prox-parks" checked onchange="applyFilters()"><span class="prox-icon">🌳</span><span class="prox-label">Парки</span></div>
+  <div class="prox-row"><input type="checkbox" id="prox-schools" checked onchange="applyFilters()"><span class="prox-icon">🏫</span><span class="prox-label">Школы</span></div>
+  <div class="prox-row"><input type="checkbox" id="prox-kindergartens" checked onchange="applyFilters()"><span class="prox-icon">👶</span><span class="prox-label">Садики</span></div>
+  <div class="prox-row"><input type="checkbox" id="prox-shopping" checked onchange="applyFilters()"><span class="prox-icon">🛒</span><span class="prox-label">Магазины / ТЦ</span></div>
+  <div class="prox-row"><input type="checkbox" id="prox-transport" checked onchange="applyFilters()"><span class="prox-icon">🚌</span><span class="prox-label">Транспорт</span></div>
+
+  <h3>Мин. рейтинг близости</h3>
+  <div class="filter-row">
+    <input class="filter-input" type="range" id="min-score" min="0" max="50" value="0" oninput="applyFilters();document.getElementById('min-score-val').textContent=this.value">
+    <span id="min-score-val" style="font-size:13px;font-weight:600;min-width:24px;text-align:right">0</span>
+    <span style="font-size:12px;color:var(--text3)">/50</span>
+  </div>
+
+  <h3>Сортировка</h3>
+  <select class="filter-select" id="sort-select" onchange="applyFilters()">
+    <option value="score-desc">Рейтинг ↓</option>
+    <option value="price-asc">Цена ↑</option>
+    <option value="price-desc">Цена ↓</option>
+    <option value="area-asc">Площадь ↑</option>
+    <option value="area-desc">Площадь ↓</option>
+    <option value="date-desc">Новые ↓</option>
+  </select>
+
+  <h3>Вид</h3>
+  <div class="view-toggle">
+    <div class="view-btn active" data-view="map" onclick="switchView('map')">🗺️ Карта</div>
+    <div class="view-btn" data-view="list" onclick="switchView('list')">📋 Список</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main-content">
+  <div class="map-view" id="view-map">
+    <div id="map"></div>
+  </div>
+  <div class="list-view" id="view-list">
+    <div class="cards-grid" id="cards-grid"></div>
+    <div class="empty-state hidden" id="empty-state">
+      <div class="icon">🔍</div>
+      <p>Нет объявлений по заданным фильтрам</p>
+    </div>
+  </div>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <img class="modal-img" id="modal-img" src="" alt="">
+    <div class="modal-body">
+      <span class="source-badge" id="modal-source">OTODOM</span>
+      <span class="deal-badge" id="modal-deal"></span>
+      <div class="modal-title" id="modal-title"></div>
+      <div class="modal-price" id="modal-price"></div>
+      <div class="modal-info" id="modal-info"></div>
+      <div class="modal-total-score" id="modal-total-score">
+        <div class="big" id="modal-score-big">—</div>
+        <div class="small">баллов из 50</div>
+      </div>
+      <div class="prox-detail" id="modal-prox"></div>
+      <div id="modal-mini-map"></div>
+      <div class="modal-actions">
+        <a class="btn-primary" id="modal-link" href="#" target="_blank" rel="noopener noreferrer">Открыть на Otodom ↗</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+/* ══════════════════════════════════════════════
+   STATE
+   ══════════════════════════════════════════════ */
+let allListings = [];
+let filtered = [];
+let leafletMap = null;
+let markerCluster = null;
+let markerMap = {};        // id -> L.marker
+let miniMap = null;
+let currentView = 'map';
+
+const WARSAW = [52.2297, 21.0122];
+
+const PROX_CATS = [
+  {key:'parks',         icon:'🌳', label:'Парки',     color:'#3fb950'},
+  {key:'schools',       icon:'🏫', label:'Школы',     color:'#58a6ff'},
+  {key:'kindergartens', icon:'👶', label:'Садики',    color:'#d2a8ff'},
+  {key:'shopping',      icon:'🛒', label:'Магазины',  color:'#f0883e'},
+  {key:'transport',     icon:'🚌', label:'Транспорт', color:'#79c0ff'},
+];
+
+/* ══════════════════════════════════════════════
+   DATA LOADING
+   ══════════════════════════════════════════════ */
+function getBasePath(){
+  if(window.location.protocol==='file:')return '';
+  const p=window.location.pathname;
+  return p.substring(0,p.lastIndexOf('/')+1);
+}
+
+async function loadData(){
+  const base=getBasePath();
+  // When served via serve.py, use the API
+  if(_isServed){
+    try{
+      const resp=await fetch('/api/listings');
+      if(resp.ok){allListings=await resp.json();console.log(`API: ${allListings.length} listings`);return;}
+    }catch(e){console.warn('API not available, falling back to static files',e);}
+  }
+  try{
+    const resp=await fetch(base+'data/listings.json');
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    allListings=await resp.json();
+  }catch(e){
+    console.warn('listings.json not found, trying listings_raw.json',e);
+    try{
+      const resp2=await fetch(base+'data/listings_raw.json');
+      if(!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
+      allListings=await resp2.json();
+    }catch(e2){
+      console.error('No data files found',e2);
+      allListings=[];
+    }
+  }
+  console.log(`Loaded ${allListings.length} listings`);
+}
+
+/* ══════════════════════════════════════════════
+   FILTERS
+   ══════════════════════════════════════════════ */
+function getActiveValues(groupId){
+  return Array.from(document.querySelectorAll(`#${groupId} .pill.active`))
+    .map(el=>el.dataset.value);
+}
+
+function togglePill(el, group){
+  el.classList.toggle('active');
+  applyFilters();
+}
+
+function applyFilters(){
+  const types = getActiveValues('type-pills');
+  const deals = getActiveValues('deal-pills');
+  const rooms = getActiveValues('rooms-pills');
+
+  const sourceFilter = document.getElementById('source-filter').value;
+  const priceMin = parseFloat(document.getElementById('price-min').value) || 0;
+  const priceMax = parseFloat(document.getElementById('price-max').value) || Infinity;
+  const areaMin  = parseFloat(document.getElementById('area-min').value)  || 0;
+  const areaMax  = parseFloat(document.getElementById('area-max').value)  || Infinity;
+  const minScore = parseInt(document.getElementById('min-score').value)   || 0;
+
+  // proximity weights (which categories user cares about)
+  const proxWeights = {};
+  PROX_CATS.forEach(c=>{
+    proxWeights[c.key] = document.getElementById('prox-'+c.key).checked ? 1 : 0;
+  });
+
+  filtered = allListings.filter(l=>{
+    if(types.length && !types.includes(l.type)) return false;
+    if(deals.length && !deals.includes(l.deal)) return false;
+    if(sourceFilter && l.source !== sourceFilter) return false;
+
+    if(rooms.length){
+      const r = l.rooms || 0;
+      if(rooms.includes('5')){
+        if(r < 5 && !rooms.includes(String(r))) return false;
+      }else{
+        if(!rooms.includes(String(r))) return false;
+      }
+    }
+
+    const price = l.price || 0;
+    if(price < priceMin || price > priceMax) return false;
+
+    const area = l.area || 0;
+    if(area < areaMin || area > areaMax) return false;
+
+    // Weighted proximity score
+    if(l.proximity){
+      const weighted = computeWeightedScore(l.proximity, proxWeights);
+      l._weightedScore = weighted;
+      if(weighted < minScore) return false;
+    }else{
+      l._weightedScore = 0;
+    }
+
+    return true;
+  });
+
+  // Sort
+  const sort = document.getElementById('sort-select').value;
+  filtered.sort((a,b)=>{
+    switch(sort){
+      case 'score-desc': return (b._weightedScore||0)-(a._weightedScore||0);
+      case 'price-asc':  return (a.price||0)-(b.price||0);
+      case 'price-desc': return (b.price||0)-(a.price||0);
+      case 'area-asc':   return (a.area||0)-(b.area||0);
+      case 'area-desc':  return (b.area||0)-(a.area||0);
+      case 'date-desc':  return (b.fetched_at||'').localeCompare(a.fetched_at||'');
+      default: return 0;
+    }
+  });
+
+  updateStats();
+  renderMap();
+  renderList();
+  saveFilters();
+}
+
+function computeWeightedScore(prox, weights){
+  let total = 0;
+  let maxPossible = 0;
+  PROX_CATS.forEach(c=>{
+    const w = weights[c.key] || 0;
+    const s = prox[c.key] ? prox[c.key].score : 0;
+    total += s * w;
+    maxPossible += 10 * w;
+  });
+  // Normalize to 0-50 scale
+  if(maxPossible === 0) return prox.total || 0;
+  return Math.round(total / maxPossible * 50);
+}
+
+/* ══════════════════════════════════════════════
+   MAP
+   ══════════════════════════════════════════════ */
+function initMap(){
+  if(leafletMap) return;
+  leafletMap = L.map('map').setView(WARSAW, 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    maxZoom:18
+  }).addTo(leafletMap);
+  markerCluster = L.markerClusterGroup({maxClusterRadius:50});
+  leafletMap.addLayer(markerCluster);
+}
+
+function scoreColor(score){
+  // 0=red, 25=yellow, 50=green
+  const ratio = Math.min(1, Math.max(0, score / 50));
+  const r = Math.round(255 * (1 - ratio));
+  const g = Math.round(200 * ratio);
+  return `rgb(${r},${g},60)`;
+}
+
+function renderMap(){
+  if(!leafletMap) return;
+  markerCluster.clearLayers();
+  markerMap = {};
+
+  const bounds = [];
+  filtered.forEach(l=>{
+    if(!l.lat || !l.lng) return;
+    const sc = l._weightedScore || 0;
+    const col = scoreColor(sc);
+    const icon = L.divIcon({
+      className:'',
+      html:`<div style="background:${col};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+      iconSize:[18,18], iconAnchor:[9,9]
+    });
+    const marker = L.marker([l.lat,l.lng],{icon});
+
+    const priceStr = l.price ? formatPrice(l.price) : '—';
+    const dealStr = l.deal === 'rent' ? 'аренда' : 'продажа';
+    const popup = `
+      <div class="popup-title">${escHtml(l.title)}</div>
+      <div class="popup-price">${priceStr} PLN</div>
+      <div class="popup-meta">${l.area||'—'} м² · ${l.rooms||'—'} комн. · ${dealStr}</div>
+      <div class="popup-score">Рейтинг: <strong>${sc}/50</strong></div>
+      <div class="popup-link"><a href="#" onclick="event.preventDefault();openModal('${l.id}')">Подробнее →</a></div>
+    `;
+    marker.bindPopup(popup);
+    markerCluster.addLayer(marker);
+    markerMap[l.id] = marker;
+    bounds.push([l.lat, l.lng]);
+  });
+
+  if(bounds.length){
+    leafletMap.fitBounds(bounds,{padding:[30,30],maxZoom:15});
+  }
+}
+
+/* ══════════════════════════════════════════════
+   LIST
+   ══════════════════════════════════════════════ */
+function renderList(){
+  const grid = document.getElementById('cards-grid');
+  const empty = document.getElementById('empty-state');
+
+  if(!filtered.length){
+    grid.innerHTML='';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = filtered.map(l=>{
+    const sc = l._weightedScore || 0;
+    const priceStr = l.price ? formatPrice(l.price) : '—';
+    const priceSuffix = l.deal==='rent' ? '/мес' : '';
+    const dealCls = l.deal==='rent'?'rent':'sale';
+    const dealLabel = l.deal==='rent'?'Аренда':'Покупка';
+    const prox = l.proximity || {};
+
+    const imgHtml = l.image
+      ? `<img class="card-img" src="${escAttr(l.image)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=\\'card-img no-img\\'>🏠</div>'">`
+      : `<div class="card-img no-img">🏠</div>`;
+
+    const bars = PROX_CATS.map(c=>{
+      const s = prox[c.key] ? prox[c.key].score : 0;
+      return `<div class="score-bar-mini" data-cat="${c.key}" title="${c.label}: ${s}/10"><div class="fill" style="width:${s*10}%"></div></div>`;
+    }).join('');
+
+    return `
+      <div class="card" onclick="openModal('${l.id}')">
+        ${imgHtml}
+        <div class="card-body">
+          <span class="deal-badge ${dealCls}">${dealLabel}</span>
+          <div class="card-title">${escHtml(l.title)}</div>
+          <div class="card-price">${priceStr} PLN<small> ${priceSuffix}</small></div>
+          <div class="card-meta">
+            <span>📐 ${l.area||'—'} м²</span>
+            <span>🚪 ${l.rooms||'—'} комн.</span>
+            ${l.floor!=null?`<span>🏢 ${l.floor} этаж</span>`:''}
+          </div>
+          <div class="card-district">${escHtml(l.district||l.address||'')}</div>
+          <div class="score-bars-mini">${bars}</div>
+          <div class="card-footer">
+            <span class="card-score" style="color:${scoreColor(sc)}">${sc}/50</span>
+            <a class="card-link" href="${escAttr(l.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${escHtml((l.source||'otodom').charAt(0).toUpperCase()+(l.source||'otodom').slice(1))} ↗</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════
+   MODAL
+   ══════════════════════════════════════════════ */
+function openModal(id){
+  const l = allListings.find(x=>x.id===id);
+  if(!l) return;
+
+  document.getElementById('modal-img').src = l.image || '';
+  document.getElementById('modal-img').style.display = l.image ? 'block' : 'none';
+  document.getElementById('modal-source').textContent = (l.source||'otodom').toUpperCase();
+  document.getElementById('modal-source').className = 'source-badge '+(l.source||'otodom');
+  const dealEl = document.getElementById('modal-deal');
+  dealEl.textContent = l.deal==='rent'?'Аренда':'Покупка';
+  dealEl.className = 'deal-badge '+(l.deal==='rent'?'rent':'sale');
+  document.getElementById('modal-title').textContent = l.title||'';
+
+  const priceSuffix = l.deal==='rent'?' <small>/мес</small>':'';
+  document.getElementById('modal-price').innerHTML = (l.price?formatPrice(l.price):'—')+' PLN'+priceSuffix;
+
+  // Info grid
+  document.getElementById('modal-info').innerHTML = `
+    <div><span class="label">Площадь:</span><span class="value">${l.area||'—'} м²</span></div>
+    <div><span class="label">Комнаты:</span><span class="value">${l.rooms||'—'}</span></div>
+    <div><span class="label">Этаж:</span><span class="value">${l.floor!=null?l.floor:'—'}</span></div>
+    <div><span class="label">Район:</span><span class="value">${escHtml(l.district||'—')}</span></div>
+    <div><span class="label">Адрес:</span><span class="value">${escHtml(l.address||'—')}</span></div>
+    <div><span class="label">Источник:</span><span class="value">${escHtml(l.source||'otodom')}</span></div>
+  `;
+
+  // Proximity
+  const prox = l.proximity || {};
+  const total = l._weightedScore || prox.total || 0;
+  document.getElementById('modal-score-big').textContent = total;
+  document.getElementById('modal-score-big').style.color = scoreColor(total);
+
+  document.getElementById('modal-prox').innerHTML = '<h4>Близость к инфраструктуре</h4>' +
+    PROX_CATS.map(c=>{
+      const d = prox[c.key] || {count:0,nearest_m:0,score:0};
+      return `
+        <div class="prox-item" data-cat="${c.key}">
+          <span class="icon">${c.icon}</span>
+          <span class="name">${c.label}</span>
+          <div class="bar"><div class="fill" style="width:${d.score*10}%"></div></div>
+          <span class="score-val">${d.score}/10</span>
+          <span class="count-info">${d.count} шт, ${d.nearest_m}м</span>
+        </div>`;
+    }).join('');
+
+  // Link
+  const srcName = (l.source||'otodom').charAt(0).toUpperCase()+(l.source||'otodom').slice(1);
+  document.getElementById('modal-link').href = l.url || '#';
+  document.getElementById('modal-link').textContent = `Открыть на ${srcName} ↗`;
+
+  // Mini map
+  const mapDiv = document.getElementById('modal-mini-map');
+  if(l.lat && l.lng){
+    mapDiv.style.display = 'block';
+    setTimeout(()=>{
+      if(miniMap){miniMap.remove();miniMap=null}
+      miniMap = L.map('modal-mini-map').setView([l.lat,l.lng],15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'© OSM',maxZoom:18
+      }).addTo(miniMap);
+      L.marker([l.lat,l.lng]).addTo(miniMap);
+    },100);
+  }else{
+    mapDiv.style.display='none';
+  }
+
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow='';
+  if(miniMap){miniMap.remove();miniMap=null}
+}
+
+/* ══════════════════════════════════════════════
+   VIEW SWITCHING
+   ══════════════════════════════════════════════ */
+function switchView(view){
+  currentView = view;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  document.getElementById('view-map').classList.toggle('hidden',view!=='map');
+  document.getElementById('view-list').classList.toggle('active',view==='list');
+  if(view==='map'){
+    setTimeout(()=>{leafletMap&&leafletMap.invalidateSize()},100);
+  }
+}
+
+/* ══════════════════════════════════════════════
+   THEME
+   ══════════════════════════════════════════════ */
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  document.getElementById('theme-icon').textContent = next==='dark'?'🌙':'☀️';
+  localStorage.setItem('hs-theme',next);
+}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR
+   ══════════════════════════════════════════════ */
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+/* ══════════════════════════════════════════════
+   STATS
+   ══════════════════════════════════════════════ */
+function updateStats(){
+  const el = document.getElementById('stats-text');
+  el.textContent = `${filtered.length} из ${allListings.length} объявлений`;
+}
+
+/* ══════════════════════════════════════════════
+   UTILS
+   ══════════════════════════════════════════════ */
+function formatPrice(n){
+  return n.toLocaleString('ru-RU');
+}
+
+function escHtml(s){
+  const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;
+}
+
+function escAttr(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ══════════════════════════════════════════════
+   PERSISTENCE
+   ══════════════════════════════════════════════ */
+function saveFilters(){
+  const state = {
+    types: getActiveValues('type-pills'),
+    deals: getActiveValues('deal-pills'),
+    rooms: getActiveValues('rooms-pills'),
+    priceMin: document.getElementById('price-min').value,
+    priceMax: document.getElementById('price-max').value,
+    areaMin: document.getElementById('area-min').value,
+    areaMax: document.getElementById('area-max').value,
+    minScore: document.getElementById('min-score').value,
+    sort: document.getElementById('sort-select').value,
+    view: currentView,
+    prox: {}
+  };
+  PROX_CATS.forEach(c=>{
+    state.prox[c.key] = document.getElementById('prox-'+c.key).checked;
+  });
+  localStorage.setItem('hs-filters', JSON.stringify(state));
+}
+
+function restoreFilters(){
+  const raw = localStorage.getItem('hs-filters');
+  if(!raw) return;
+  try{
+    const s = JSON.parse(raw);
+
+    // Restore pill states
+    ['type-pills','deal-pills','rooms-pills'].forEach(groupId=>{
+      const key = groupId.replace('-pills','')+'s';
+      const vals = s[key==='typess'?'types':key] || [];
+      if(!vals.length && groupId!=='rooms-pills') return; // keep default "all active"
+      document.querySelectorAll(`#${groupId} .pill`).forEach(p=>{
+        if(groupId==='rooms-pills'){
+          p.classList.toggle('active', vals.includes(p.dataset.value));
+        }else if(vals.length){
+          p.classList.toggle('active', vals.includes(p.dataset.value));
+        }
+      });
+    });
+
+    if(s.priceMin) document.getElementById('price-min').value = s.priceMin;
+    if(s.priceMax) document.getElementById('price-max').value = s.priceMax;
+    if(s.areaMin) document.getElementById('area-min').value = s.areaMin;
+    if(s.areaMax) document.getElementById('area-max').value = s.areaMax;
+    if(s.minScore){
+      document.getElementById('min-score').value = s.minScore;
+      document.getElementById('min-score-val').textContent = s.minScore;
+    }
+    if(s.sort) document.getElementById('sort-select').value = s.sort;
+    if(s.prox){
+      PROX_CATS.forEach(c=>{
+        if(c.key in s.prox) document.getElementById('prox-'+c.key).checked = s.prox[c.key];
+      });
+    }
+    if(s.view) switchView(s.view);
+  }catch(e){console.warn('Failed to restore filters',e)}
+}
+
+function restoreTheme(){
+  const t = localStorage.getItem('hs-theme');
+  if(t){
+    document.documentElement.setAttribute('data-theme',t);
+    document.getElementById('theme-icon').textContent = t==='dark'?'🌙':'☀️';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   LIVE FETCH
+   ══════════════════════════════════════════════ */
+let _fetchPolling = null;
+const _isServed = window.location.protocol !== 'file:';
+
+function triggerFetch(){
+  if(!_isServed){
+    alert('Живая загрузка доступна только через serve.py.\nЗапустите: python serve.py');
+    return;
+  }
+  const source = document.getElementById('fetch-source').value;
+  const btn = document.getElementById('fetch-btn');
+  const status = document.getElementById('fetch-status');
+
+  btn.classList.add('spinning');
+  btn.disabled = true;
+  status.textContent = 'Загрузка...';
+
+  fetch(`/api/fetch?source=${source}&pages=3`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status==='busy'){
+        status.textContent = d.message;
+        btn.classList.remove('spinning');
+        btn.disabled = false;
+        return;
+      }
+      status.textContent = d.message;
+      // Start polling for completion
+      _fetchPolling = setInterval(pollFetchStatus, 2000);
+    })
+    .catch(e=>{
+      status.textContent = 'Ошибка подключения';
+      btn.classList.remove('spinning');
+      btn.disabled = false;
+    });
+}
+
+function pollFetchStatus(){
+  fetch('/api/status')
+    .then(r=>r.json())
+    .then(d=>{
+      const status = document.getElementById('fetch-status');
+      const btn = document.getElementById('fetch-btn');
+      status.textContent = d.message;
+
+      if(!d.running){
+        clearInterval(_fetchPolling);
+        _fetchPolling = null;
+        btn.classList.remove('spinning');
+        btn.disabled = false;
+        // Reload listings
+        reloadListings();
+      }
+    })
+    .catch(()=>{});
+}
+
+async function reloadListings(){
+  if(_isServed){
+    try{
+      const resp = await fetch('/api/listings');
+      if(resp.ok) allListings = await resp.json();
+    }catch(e){}
+  }else{
+    await loadData();
+  }
+  applyFilters();
+  const status = document.getElementById('fetch-status');
+  status.textContent = `Обновлено: ${allListings.length} объявлений`;
+}
+
+/* ══════════════════════════════════════════════
+   KEYBOARD
+   ══════════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeModal();
+});
+
+/* ══════════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  restoreTheme();
+  restoreFilters();
+  initMap();
+  await loadData();
+  applyFilters();
+  // Show last update info
+  if(allListings.length){
+    const sources = {};
+    allListings.forEach(l=>{sources[l.source||'?']=(sources[l.source||'?']||0)+1;});
+    const parts = Object.entries(sources).map(([k,v])=>`${k}: ${v}`).join(', ');
+    document.getElementById('fetch-status').textContent = parts;
+  }
+});
+</script>
+</body>
+</html>
