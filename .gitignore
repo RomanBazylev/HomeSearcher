@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-data/listings_raw.json
 data/listings.json
 debug_*.py
 debug_*.html

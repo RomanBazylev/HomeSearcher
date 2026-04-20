@@ -473,7 +473,7 @@ function getBasePath(){
 async function loadData(){
   const base=getBasePath();
   // When served via serve.py, use the API
-  if(_isServed){
+  if(_hasBackend){
     try{
       const resp=await fetch('/api/listings');
       if(resp.ok){allListings=await resp.json();console.log(`API: ${allListings.length} listings`);return;}
@@ -914,10 +914,23 @@ function restoreTheme(){
    LIVE FETCH
    ══════════════════════════════════════════════ */
 let _fetchPolling = null;
-const _isServed = window.location.protocol !== 'file:';
+let _hasBackend = false;
+
+// Detect if serve.py backend is running (not just any HTTP server / GH Pages)
+(async function detectBackend(){
+  try{
+    const r = await fetch('/api/status', {signal: AbortSignal.timeout(2000)});
+    if(r.ok){ _hasBackend=true; }
+  }catch(e){}
+  if(!_hasBackend){
+    // Hide live-fetch controls on static hosting (GitHub Pages)
+    const fc = document.querySelector('.fetch-controls');
+    if(fc) fc.style.display = 'none';
+  }
+})();
 
 function triggerFetch(){
-  if(!_isServed){
+  if(!_hasBackend){
     alert('Живая загрузка доступна только через serve.py.\nЗапустите: python serve.py');
     return;
   }
@@ -970,7 +983,7 @@ function pollFetchStatus(){
 }
 
 async function reloadListings(){
-  if(_isServed){
+  if(_hasBackend){
     try{
       const resp = await fetch('/api/listings');
       if(resp.ok) allListings = await resp.json();
